@@ -1,4 +1,9 @@
-import { ColorScheme, StartScreenPrompt, ThemeOption } from "@openai/chatkit";
+import {
+  ColorScheme,
+  GrayscaleOptions,
+  StartScreenPrompt,
+  ThemeOption,
+} from "@openai/chatkit";
 
 export const WORKFLOW_ID =
   process.env.NEXT_PUBLIC_CHATKIT_WORKFLOW_ID?.trim() ?? "";
@@ -17,8 +22,8 @@ export const PLACEHOLDER_INPUT = "schlaue Rechtsfrage...";
 
 export const GREETING = "Wie kann ich Ihnen helfen, liebe RuP-Mitarbeitenden?";
 
-const lightGrayscale = { hue: 0, tint: 8, shade: -4 };
-const darkGrayscale = { hue: 0, tint: 4, shade: -8 };
+const lightGrayscale: GrayscaleOptions = { hue: 0, tint: 8, shade: -4 };
+const darkGrayscale: GrayscaleOptions = { hue: 0, tint: 4, shade: -2 };
 const accent = {
   primary: "#bb0a30",
   level: 2,
