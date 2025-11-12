@@ -58,67 +58,70 @@ export default function App() {
   }, []);
 
   return (
-    <main className="flex min-h-screen bg-white">
-      {/* Sidebar Toggle Buttons */}
-      <div className="fixed left-4 top-4 z-50 flex gap-2">
+    <main className="flex min-h-screen bg-white flex-col">
+      {/* Top Bar with Sidebar Toggle Buttons */}
+      <div className="w-full px-4 py-3 flex items-center gap-2">
         <button
           onClick={() => setSidebarMode(sidebarMode === "templates" ? "none" : "templates")}
-          className={`p-2 rounded-lg transition-colors ${
+          className={`p-2 rounded-md transition-colors ${
             sidebarMode === "templates"
-              ? "bg-gray-200 text-gray-900"
-              : "bg-white text-gray-600 hover:bg-gray-100"
-          } shadow-sm border border-gray-200`}
+              ? "bg-[#bb0a30] text-white"
+              : "text-gray-400 hover:text-gray-600"
+          }`}
           aria-label="Vorlagen"
           title="Vorlagen"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
           </svg>
         </button>
         <button
           onClick={() => setSidebarMode(sidebarMode === "usage" ? "none" : "usage")}
-          className={`p-2 rounded-lg transition-colors ${
+          className={`p-2 rounded-md transition-colors ${
             sidebarMode === "usage"
-              ? "bg-gray-200 text-gray-900"
-              : "bg-white text-gray-600 hover:bg-gray-100"
-          } shadow-sm border border-gray-200`}
+              ? "bg-[#bb0a30] text-white"
+              : "text-gray-400 hover:text-gray-600"
+          }`}
           aria-label="Token-Nutzung"
           title="Token-Nutzung"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
           </svg>
         </button>
       </div>
 
-      {/* Prompt Templates Sidebar */}
-      {sidebarMode === "templates" && (
-        <div className="w-72 shrink-0 border-r border-gray-200">
-          <PromptSidebar onInsert={handleInsertPrompt} />
-        </div>
-      )}
+      {/* Content Area with Sidebars */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Prompt Templates Sidebar */}
+        {sidebarMode === "templates" && (
+          <div className="w-64 shrink-0 border-r border-gray-200 overflow-y-auto">
+            <PromptSidebar onInsert={handleInsertPrompt} />
+          </div>
+        )}
 
-      {/* Usage Tracking Sidebar */}
-      {sidebarMode === "usage" && (
-        <div className="w-80 shrink-0 border-r border-gray-200">
-          <UsageSidebar
-            isOpen={true}
-            currentSessionId={currentSessionId}
-          />
-        </div>
-      )}
+        {/* Usage Tracking Sidebar */}
+        {sidebarMode === "usage" && (
+          <div className="w-64 shrink-0 border-r border-gray-200 overflow-y-auto">
+            <UsageSidebar
+              isOpen={true}
+              currentSessionId={currentSessionId}
+            />
+          </div>
+        )}
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col items-center justify-end">
-        {/* Chat Panel */}
-        <div className="mx-auto w-full max-w-5xl px-4">
-          <ChatKitPanel
-            theme={FORCED_SCHEME}
-            onWidgetAction={handleWidgetAction}
-            onResponseEnd={handleResponseEnd}
-            onThemeRequest={() => {}}
-            onInsertPrompt={handleInsertPrompt}
-          />
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col items-center justify-end">
+          {/* Chat Panel */}
+          <div className="mx-auto w-full max-w-5xl px-4">
+            <ChatKitPanel
+              theme={FORCED_SCHEME}
+              onWidgetAction={handleWidgetAction}
+              onResponseEnd={handleResponseEnd}
+              onThemeRequest={() => {}}
+              onInsertPrompt={handleInsertPrompt}
+            />
+          </div>
         </div>
       </div>
     </main>
