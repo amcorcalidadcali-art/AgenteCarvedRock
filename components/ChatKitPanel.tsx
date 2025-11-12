@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChatKit, useChatKit } from "@openai/chatkit-react";
 import {
   STARTER_PROMPTS,
@@ -11,6 +11,11 @@ import {
   getThemeConfig,
 } from "@/lib/config";
 import { ErrorOverlay } from "./ErrorOverlay";
+import PromptSidebar from "./PromptSidebar";
+import TokenUsagePanel, {
+  type AggregatedModelUsage,
+  type TokenUsageSummary,
+} from "./TokenUsagePanel";
 import type { ColorScheme } from "@/hooks/useColorScheme";
 
 export type FactAction = {
@@ -19,10 +24,17 @@ export type FactAction = {
   factText: string;
 };
 
+export type ResponseUsage = {
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+};
+
 type ChatKitPanelProps = {
   theme: ColorScheme;
   onWidgetAction: (action: FactAction) => Promise<void>;
-  onResponseEnd: (sessionId?: string, tokens?: number) => void;
+  onResponseEnd: (sessionId?: string, usage?: ResponseUsage) => void;
   onThemeRequest: (scheme: ColorScheme) => void;
   onInsertPrompt?: (text: string) => Promise<void>;
 };
@@ -39,6 +51,15 @@ type WidgetAction = {
   values?: Record<string, unknown>;
   payload?: Record<string, unknown>;
 };
+
+type SidebarMode = "prompts" | "tokens";
+
+type ChatKitLogEvent = {
+  name?: string;
+  data?: Record<string, unknown>;
+};
+
+type UsageEvent = ResponseUsage & { responseId?: string | null };
 
 const isBrowser = typeof window !== "undefined";
 const isDev = process.env.NODE_ENV !== "production";
@@ -67,9 +88,53 @@ export function ChatKitPanel({
   const [widgetInstanceKey, setWidgetInstanceKey] = useState(0);
   const sessionIdRef = useRef<string | null>(null);
   const responseCountRef = useRef(0);
+  const pendingUsageQueueRef = useRef<UsageEvent[]>([]);
+  const processedResponseIdsRef = useRef(new Set<string>());
+  const [sidebarMode, setSidebarMode] = useState<SidebarMode>("prompts");
+  const [usageByModel, setUsageByModel] = useState<Record<string, AggregatedModelUsage>>(
+    {}
+  );
 
   const setErrorState = useCallback((updates: Partial<ErrorState>) => {
     setErrors((current) => ({ ...current, ...updates }));
+  }, []);
+
+  const clearUsageTracking = useCallback(() => {
+    pendingUsageQueueRef.current = [];
+    processedResponseIdsRef.current.clear();
+    setUsageByModel({});
+  }, []);
+
+  const handleUsageLog = useCallback((entry?: ChatKitLogEvent) => {
+    const usageEvent = extractUsageEvent(entry);
+    if (!usageEvent) return;
+    if (
+      usageEvent.responseId &&
+      processedResponseIdsRef.current.has(usageEvent.responseId)
+    ) {
+      return;
+    }
+    if (usageEvent.responseId) {
+      processedResponseIdsRef.current.add(usageEvent.responseId);
+    }
+    pendingUsageQueueRef.current = [...pendingUsageQueueRef.current, usageEvent];
+    setUsageByModel((prev) => {
+      const current = prev[usageEvent.model] ?? {
+        model: usageEvent.model,
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+      };
+      return {
+        ...prev,
+        [usageEvent.model]: {
+          model: usageEvent.model,
+          promptTokens: current.promptTokens + usageEvent.promptTokens,
+          completionTokens: current.completionTokens + usageEvent.completionTokens,
+          totalTokens: current.totalTokens + usageEvent.totalTokens,
+        },
+      };
+    });
   }, []);
 
   useEffect(() => {
@@ -139,6 +204,7 @@ export function ChatKitPanel({
 
   const handleResetChat = useCallback(() => {
     processedFacts.current.clear();
+    clearUsageTracking();
     if (isBrowser) {
       setScriptStatus(
         window.customElements?.get("openai-chatkit") ? "ready" : "pending"
@@ -147,7 +213,7 @@ export function ChatKitPanel({
     setIsInitializingSession(true);
     setErrors(createInitialErrors());
     setWidgetInstanceKey((prev) => prev + 1);
-  }, []);
+  }, [clearUsageTracking]);
 
   const getClientSecret = useCallback(
     async (currentSecret: string | null) => {
@@ -310,21 +376,40 @@ export function ChatKitPanel({
     },
     onResponseEnd: () => {
       responseCountRef.current += 1;
-      // Estimate tokens (rough average for a typical exchange)
-      // This is a placeholder until we can access actual usage data
-      const estimatedTokens = 150; // Average tokens per response
-      onResponseEnd(sessionIdRef.current ?? undefined, estimatedTokens);
+      const [latestUsage, ...rest] = pendingUsageQueueRef.current;
+      pendingUsageQueueRef.current = rest;
+      const usagePayload = latestUsage
+        ? {
+            model: latestUsage.model,
+            promptTokens: latestUsage.promptTokens,
+            completionTokens: latestUsage.completionTokens,
+            totalTokens: latestUsage.totalTokens,
+          }
+        : undefined;
+      onResponseEnd(sessionIdRef.current ?? undefined, usagePayload);
     },
     onResponseStart: () => {
       setErrorState({ integration: null, retryable: false });
     },
     onThreadChange: () => {
       processedFacts.current.clear();
+      clearUsageTracking();
     },
     onError: ({ error }: { error: unknown }) => {
       console.error("ChatKit error", error);
     },
+    onLog: (entry?: ChatKitLogEvent) => {
+      handleUsageLog(entry);
+    },
   });
+
+  const usageSummary = useMemo<TokenUsageSummary>(() => {
+    const models = Object.values(usageByModel).sort(
+      (a, b) => b.totalTokens - a.totalTokens
+    );
+    const totalTokens = models.reduce((sum, entry) => sum + entry.totalTokens, 0);
+    return { models, totalTokens };
+  }, [usageByModel]);
 
   const activeError = errors.session ?? errors.integration;
   const blockingError = errors.script ?? activeError;
@@ -340,26 +425,62 @@ export function ChatKitPanel({
   }
 
   return (
-    <div className="relative pb-8 flex h-[90vh] w-full rounded-2xl flex-col overflow-hidden bg-white shadow-xl transition-colors">
-      <ChatKit
-        key={widgetInstanceKey}
-        control={control}
-        className={
-          blockingError || isInitializingSession
-            ? "pointer-events-none opacity-0"
-            : "block h-full w-full"
-        }
-      />
-      <ErrorOverlay
-        error={blockingError}
-        fallbackMessage={
-          blockingError || !isInitializingSession
-            ? null
-            : "Loading assistant session..."
-        }
-        onRetry={blockingError && errors.retryable ? handleResetChat : null}
-        retryLabel="Restart chat"
-      />
+    <div className="flex h-[90vh] w-full gap-4">
+      <div className="hidden w-72 shrink-0 flex-col lg:flex">
+        <div className="mb-3 flex rounded-full bg-white p-1 shadow">
+          <button
+            type="button"
+            onClick={() => setSidebarMode("prompts")}
+            className={`flex-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+              sidebarMode === "prompts"
+                ? "bg-[#bb0a30] text-white shadow-sm"
+                : "text-gray-500 hover:text-gray-900"
+            }`}
+          >
+            Prompt-Manager
+          </button>
+          <button
+            type="button"
+            onClick={() => setSidebarMode("tokens")}
+            className={`flex-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+              sidebarMode === "tokens"
+                ? "bg-[#bb0a30] text-white shadow-sm"
+                : "text-gray-500 hover:text-gray-900"
+            }`}
+          >
+            Token-Nutzung
+          </button>
+        </div>
+        <div className="flex-1 overflow-hidden rounded-2xl bg-white shadow">
+          {sidebarMode === "prompts" ? (
+            <PromptSidebar onInsert={handleInsertPrompt} className="h-full" />
+          ) : (
+            <TokenUsagePanel summary={usageSummary} />
+          )}
+        </div>
+      </div>
+
+      <div className="relative flex flex-1 flex-col overflow-hidden rounded-2xl bg-white pb-8 shadow-xl transition-colors">
+        <ChatKit
+          key={widgetInstanceKey}
+          control={control}
+          className={
+            blockingError || isInitializingSession
+              ? "pointer-events-none opacity-0"
+              : "block h-full w-full"
+          }
+        />
+        <ErrorOverlay
+          error={blockingError}
+          fallbackMessage={
+            blockingError || !isInitializingSession
+              ? null
+              : "Loading assistant session..."
+          }
+          onRetry={blockingError && errors.retryable ? handleResetChat : null}
+          retryLabel="Restart chat"
+        />
+      </div>
     </div>
   );
 }
@@ -401,4 +522,102 @@ function extractErrorDetail(
   if (typeof payload.message === "string") return payload.message;
 
   return fallback;
+}
+
+function extractUsageEvent(entry?: ChatKitLogEvent): UsageEvent | null {
+  if (!entry) return null;
+  const payload = isRecord(entry.data) ? entry.data : {};
+  const response = resolveResponsePayload(payload);
+  const usageSource = resolveUsageSource(payload, response);
+  if (!usageSource) return null;
+
+  const promptTokens = readNumber(
+    usageSource,
+    "prompt_tokens",
+    "input_tokens",
+    "input_token_count"
+  );
+  const completionTokens = readNumber(
+    usageSource,
+    "completion_tokens",
+    "output_tokens",
+    "output_token_count"
+  );
+  const totalTokens =
+    readNumber(usageSource, "total_tokens", "token_count") ||
+    promptTokens + completionTokens;
+
+  if (!totalTokens) return null;
+
+  const model = resolveModelName(payload, response);
+  const responseId =
+    typeof payload.response_id === "string"
+      ? payload.response_id
+      : typeof response?.id === "string"
+        ? (response.id as string)
+        : undefined;
+
+  return {
+    model,
+    promptTokens: promptTokens || Math.max(totalTokens - completionTokens, 0),
+    completionTokens:
+      completionTokens || Math.max(totalTokens - promptTokens, 0),
+    totalTokens,
+    responseId,
+  };
+}
+
+function resolveResponsePayload(
+  payload: Record<string, unknown>
+): Record<string, unknown> | undefined {
+  if (isRecord(payload.response)) return payload.response;
+  if (isRecord(payload.last_response)) return payload.last_response;
+  return undefined;
+}
+
+function resolveUsageSource(
+  payload: Record<string, unknown>,
+  response?: Record<string, unknown>
+): Record<string, unknown> | undefined {
+  if (isRecord(payload.usage)) return payload.usage;
+  if (response && isRecord(response.usage)) return response.usage;
+  return undefined;
+}
+
+function resolveModelName(
+  payload: Record<string, unknown>,
+  response?: Record<string, unknown>
+): string {
+  if (typeof payload.model === "string" && payload.model.trim().length > 0) {
+    return payload.model;
+  }
+  if (
+    response &&
+    typeof response.model === "string" &&
+    response.model.trim().length > 0
+  ) {
+    return response.model;
+  }
+  return "unbekanntes-Modell";
+}
+
+function readNumber(
+  source: Record<string, unknown>,
+  ...keys: string[]
+): number {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === "string") {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+  return 0;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object";
 }

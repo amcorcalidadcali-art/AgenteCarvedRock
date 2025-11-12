@@ -62,11 +62,15 @@ export default function PromptSidebar({
   };
 
   if (err) {
-    return <aside className={className}><div className="p-3 text-sm text-red-600">Fehler: {err}</div></aside>;
+    return (
+      <aside className={`flex h-full flex-col bg-white ${className ?? ""}`}>
+        <div className="p-3 text-sm text-red-600">Fehler: {err}</div>
+      </aside>
+    );
   }
 
   return (
-    <aside className={`border-r border-gray-200 bg-white ${className ?? ""}`}>
+    <aside className={`flex h-full flex-col bg-white ${className ?? ""}`}>
       <div className="p-3">
         <input
           className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring"
@@ -75,7 +79,7 @@ export default function PromptSidebar({
           onChange={(e) => setQ(e.target.value)}
         />
       </div>
-      <div className="h-[calc(90vh-3rem)] overflow-y-auto px-2 pb-4">
+      <div className="flex-1 overflow-y-auto px-2 pb-4">
         {!data ? (
           <div className="p-3 text-sm text-gray-500">Lade Vorlagen…</div>
         ) : roots.length === 0 ? (
