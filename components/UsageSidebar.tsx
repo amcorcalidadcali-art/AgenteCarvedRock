@@ -36,14 +36,12 @@ interface SessionHistory {
 
 interface UsageSidebarProps {
   isOpen: boolean;
-  onClose: () => void;
   currentSessionId?: string;
   onSessionUpdate?: (stats: CurrentSession) => void;
 }
 
 export default function UsageSidebar({
   isOpen,
-  onClose,
   currentSessionId,
 }: UsageSidebarProps) {
   const [dailyStats, setDailyStats] = useState<DailyStats[]>([]);
@@ -101,34 +99,13 @@ export default function UsageSidebar({
   if (!isOpen) return null;
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/20 z-40 lg:hidden"
-        onClick={onClose}
-      />
-
-      {/* Sidebar */}
-      <div
-        className={`fixed left-0 top-0 h-full w-80 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 z-50 transform transition-transform duration-300 ease-in-out ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        } overflow-y-auto`}
-      >
-        {/* Header */}
-        <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Token-Nutzung
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400"
-            aria-label="Schließen"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+    <div className="h-full w-full bg-white dark:bg-gray-900 overflow-y-auto">
+      {/* Header */}
+      <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-4">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          Token-Nutzung
+        </h2>
+      </div>
 
         {loading ? (
           <div className="p-4 space-y-4">
@@ -304,7 +281,6 @@ export default function UsageSidebar({
             </button>
           </div>
         )}
-      </div>
-    </>
+    </div>
   );
 }

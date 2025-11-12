@@ -11,7 +11,6 @@ import {
   getThemeConfig,
 } from "@/lib/config";
 import { ErrorOverlay } from "./ErrorOverlay";
-import PromptSidebar from "./PromptSidebar";
 import type { ColorScheme } from "@/hooks/useColorScheme";
 
 export type FactAction = {
@@ -25,6 +24,7 @@ type ChatKitPanelProps = {
   onWidgetAction: (action: FactAction) => Promise<void>;
   onResponseEnd: (sessionId?: string) => void;
   onThemeRequest: (scheme: ColorScheme) => void;
+  onInsertPrompt?: (text: string) => Promise<void>;
 };
 
 type ErrorState = {
@@ -55,6 +55,7 @@ export function ChatKitPanel({
   onWidgetAction,
   onResponseEnd,
   onThemeRequest,
+  onInsertPrompt,
 }: ChatKitPanelProps) {
   const processedFacts = useRef(new Set<string>());
   const [errors, setErrors] = useState<ErrorState>(() => createInitialErrors());
@@ -266,6 +267,9 @@ export function ChatKitPanel({
               : "";
           const trimmed = text.trim();
           if (trimmed) {
+            if (onInsertPrompt) {
+              await onInsertPrompt(trimmed);
+            }
             await setComposerValue({ text: "" });
             await setComposerValue({ text: trimmed });
             await focusComposer();
@@ -317,17 +321,6 @@ export function ChatKitPanel({
     },
   });
 
-  const handleInsertPrompt = useCallback(
-    async (text: string) => {
-      const trimmed = text.trim();
-      if (!trimmed) return;
-      await setComposerValue({ text: "" });
-      await setComposerValue({ text: trimmed });
-      await focusComposer();
-    },
-    [focusComposer, setComposerValue]
-  );
-
   const activeError = errors.session ?? errors.integration;
   const blockingError = errors.script ?? activeError;
 
@@ -342,32 +335,26 @@ export function ChatKitPanel({
   }
 
   return (
-    <div className="flex h-[90vh] w-full gap-4">
-      <PromptSidebar
-        className="hidden w-72 shrink-0 lg:block"
-        onInsert={handleInsertPrompt}
+    <div className="relative pb-8 flex h-[90vh] w-full rounded-2xl flex-col overflow-hidden bg-white shadow-xl transition-colors">
+      <ChatKit
+        key={widgetInstanceKey}
+        control={control}
+        className={
+          blockingError || isInitializingSession
+            ? "pointer-events-none opacity-0"
+            : "block h-full w-full"
+        }
       />
-      <div className="relative pb-8 flex flex-1 rounded-2xl flex-col overflow-hidden bg-white shadow-xl transition-colors">
-        <ChatKit
-          key={widgetInstanceKey}
-          control={control}
-          className={
-            blockingError || isInitializingSession
-              ? "pointer-events-none opacity-0"
-              : "block h-full w-full"
-          }
-        />
-        <ErrorOverlay
-          error={blockingError}
-          fallbackMessage={
-            blockingError || !isInitializingSession
-              ? null
-              : "Loading assistant session..."
-          }
-          onRetry={blockingError && errors.retryable ? handleResetChat : null}
-          retryLabel="Restart chat"
-        />
-      </div>
+      <ErrorOverlay
+        error={blockingError}
+        fallbackMessage={
+          blockingError || !isInitializingSession
+            ? null
+            : "Loading assistant session..."
+        }
+        onRetry={blockingError && errors.retryable ? handleResetChat : null}
+        retryLabel="Restart chat"
+      />
     </div>
   );
 }
