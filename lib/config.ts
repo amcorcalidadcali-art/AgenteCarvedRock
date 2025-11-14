@@ -1,4 +1,10 @@
-import { ColorScheme, StartScreenPrompt, ThemeOption } from "@openai/chatkit";
+import {
+  AccentColor,
+  ColorScheme,
+  GrayscaleOptions,
+  StartScreenPrompt,
+  ThemeOption,
+} from "@openai/chatkit";
 
 export const WORKFLOW_ID =
   process.env.NEXT_PUBLIC_CHATKIT_WORKFLOW_ID?.trim() ?? "";
@@ -7,27 +13,27 @@ export const CREATE_SESSION_ENDPOINT = "/api/create-session";
 
 export const STARTER_PROMPTS: StartScreenPrompt[] = [
   {
-    label: "What can you do?",
-    prompt: "What can you do?",
+    label: "Was kannst du tun?",
+    prompt: "Was kannst du tun?",
     icon: "circle-question",
   },
 ];
 
-export const PLACEHOLDER_INPUT = "Ask anything...";
+export const PLACEHOLDER_INPUT = "Schlaue Rechtsfrage...";
 
-export const GREETING = "How can I help you today?";
+export const GREETING = "Wie kann ich Ihnen helfen, liebe RuP-Mitarbeitende?";
+
+const lightGrayscale: GrayscaleOptions = { hue: 0, tint: 8, shade: -4 };
+const darkGrayscale: GrayscaleOptions = { hue: 0, tint: 4, shade: -2 };
+const accent: AccentColor = {
+  primary: "#bb0a30",
+  level: 2,
+};
 
 export const getThemeConfig = (theme: ColorScheme): ThemeOption => ({
   color: {
-    grayscale: {
-      hue: 220,
-      tint: 6,
-      shade: theme === "dark" ? -1 : -4,
-    },
-    accent: {
-      primary: theme === "dark" ? "#f1f5f9" : "#0f172a",
-      level: 1,
-    },
+    grayscale: theme === "dark" ? darkGrayscale : lightGrayscale,
+    accent,
   },
   radius: "round",
   // Add other theme options here
